@@ -88,6 +88,17 @@ class BlockchainService
     address = PaymentAddress.find_by(wallet: Wallet.deposit_wallet(transaction.currency_id), address: transaction.to_address)
     return if address.blank?
 
+    transactions = Deposit.where(aasm_state: %w[processing fee_processing]).each_with_object([]) do |deposit, transactions|
+      deposit.spread.each do |t|
+        if transaction.hash == t[:hash]
+          Rails.logger.info { 'Skipped deposit collection fee transaction' }
+          transactions << t
+        end
+      end
+    end
+
+    return if transactions.present?
+
     if transaction.from_addresses.blank? && adapter.respond_to?(:transaction_sources)
       transaction.from_addresses = adapter.transaction_sources(transaction)
     end
